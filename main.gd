@@ -7,6 +7,7 @@ var current_target: String = ""
 var player: CharacterBody3D
 var rabbit: Node3D
 var mouse_sensitivity: float = 0.0025
+var camera_arm: SpringArm3D
 var crosshair: Label
 var camera: Camera3D
 var lamp: OmniLight3D
@@ -210,7 +211,7 @@ func _build_player() -> void:
 	player = CharacterBody3D.new()
 	player.name = "Traveler"
 	add_child(player)
-	player.position = Vector3(0.5, 0.03, 2.4)
+	player.position = Vector3(0.5, 0.03, 1.6)
 	var collision := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.22
@@ -220,7 +221,7 @@ func _build_player() -> void:
 	player.add_child(collision)
 	rabbit = Node3D.new()
 	player.add_child(rabbit)
-	rabbit.hide()
+	rabbit.rotation.y = PI
 	sphere(rabbit, Vector3(0, 0.52, 0), 0.30, "coat", Vector3(1, 1.25, 0.85))
 	sphere(rabbit, Vector3(0, 0.98, 0), 0.32, "rabbit", Vector3(1, 0.95, 0.90))
 	for x in [-0.16, 0.16]:
@@ -257,11 +258,22 @@ func _build_lighting() -> void:
 	lamp.light_energy = 1.8
 	lamp.omni_range = 7.0
 	lamp.shadow_enabled = true
+	camera_arm = SpringArm3D.new()
+	player.add_child(camera_arm)
+	camera_arm.position = Vector3(0.45, 1.9, 0)
+	camera_arm.rotation.x = deg_to_rad(-8)
+	camera_arm.spring_length = 2.05
+	camera_arm.margin = 0.12
+	camera_arm.collision_mask = 1
+	var camera_shape := SphereShape3D.new()
+	camera_shape.radius = 0.20
+	camera_arm.shape = camera_shape
+	camera_arm.add_excluded_object(player.get_rid())
 	camera = Camera3D.new()
-	player.add_child(camera)
-	camera.position = Vector3(0, 1.38, 0)
+	camera_arm.add_child(camera)
+	camera.position = Vector3.ZERO
 	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-	camera.fov = 72.0
+	camera.fov = 68.0
 	camera.near = 0.05
 	camera.current = true
 
@@ -473,7 +485,7 @@ func _apply_mouse_look(relative: Vector2) -> void:
 	if dialog_open or ended:
 		return
 	player.rotation.y -= relative.x * mouse_sensitivity
-	camera.rotation.x = clampf(camera.rotation.x - relative.y * mouse_sensitivity, deg_to_rad(-75), deg_to_rad(75))
+	camera_arm.rotation.x = clampf(camera_arm.rotation.x - relative.y * mouse_sensitivity, deg_to_rad(-55), deg_to_rad(25))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and not dialog_open and not ended and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -516,18 +528,22 @@ func _physics_process(delta: float) -> void:
 	player.velocity.z = direction.z * 2.5
 	player.velocity.y -= 15.0 * delta
 	player.move_and_slide()
-	player.position.x = clampf(player.position.x, -4.5, 4.65)
-	player.position.z = clampf(player.position.z, -3.55, 3.5)
+	player.position.x = clampf(player.position.x, -4.2, 4.2)
+	player.position.z = clampf(player.position.z, -3.2, 3.2)
+	if direction.length_squared() > 0.01:
+		rabbit.position.y = absf(sin(elapsed * 10.0)) * 0.035
+	else:
+		rabbit.position.y = 0.0
 	_update_target()
 
 func _update_target() -> void:
 	current_target = ""
 	var start := camera.global_position
-	var finish := start - camera.global_basis.z * 2.4
+	var finish := start - camera.global_basis.z * 4.5
 	var query := PhysicsRayQueryParameters3D.create(start, finish, 3, [player.get_rid()])
 	query.collide_with_areas = true
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty() and hit.collider.has_meta("interaction_id"):
+	if not hit.is_empty() and hit.collider.has_meta("interaction_id") and player.global_position.distance_to(hit.position) <= 2.6:
 		current_target = hit.collider.get_meta("interaction_id")
 	prompt_label.text = "[ E ]  " + NAMES[current_target] if not current_target.is_empty() else ""
 	crosshair.modulate = Color("e8c987") if not current_target.is_empty() else Color.WHITE
@@ -615,11 +631,12 @@ func restart_game() -> void:
 	stage = 0
 	ended = false
 	elapsed = 0.0
-	player.position = Vector3(0.5, 0.03, 2.4)
+	player.position = Vector3(0.5, 0.03, 1.6)
 	player.velocity = Vector3.ZERO
-	rabbit.rotation = Vector3.ZERO
+	rabbit.rotation = Vector3(0, PI, 0)
 	player.rotation = Vector3.ZERO
 	camera.rotation = Vector3.ZERO
+	camera_arm.rotation = Vector3(deg_to_rad(-8), 0, 0)
 	ending_panel.hide()
 	_refresh_state()
 	_intro()

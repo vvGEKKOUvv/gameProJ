@@ -92,7 +92,7 @@ func _run() -> void:
 	game._unhandled_input(_key(KEY_R))
 	_check(game.stage == 0 and not game.ended and game.dialog_open, "restart resets story and intro")
 	_check(not game.shadow_guest.visible and not game.key_mesh.visible and not game.ending_panel.visible, "restart resets visual clues")
-	_check(game.player.position.distance_to(Vector3(0.5, 0.03, 2.4)) < 0.01, "restart resets player position")
+	_check(game.player.position.distance_to(Vector3(0.5, 0.03, 1.6)) < 0.01, "restart resets player position")
 	game.close_dialog()
 	game.interact("door")
 	_check(game.stage == 0 and not game.ended, "door is locked again after restart")
@@ -110,7 +110,7 @@ func _run() -> void:
 	game.camera.look_at(Vector3(0.15, 1.43, -3.25))
 	game._update_target()
 	_check(game.current_target == "phone", "aimed nearby phone becomes current target")
-	_check(game.camera.projection == Camera3D.PROJECTION_PERSPECTIVE and game.camera.get_parent() == game.player, "first-person perspective camera follows player")
+	_check(game.camera.projection == Camera3D.PROJECTION_PERSPECTIVE and game.camera.get_parent() == game.camera_arm and game.camera_arm.get_parent() == game.player and game.rabbit.visible, "third-person camera follows visible player")
 	game.camera.rotation = Vector3(0, PI, 0)
 	game._update_target()
 	_check(game.current_target.is_empty(), "looking away removes interaction")
@@ -118,8 +118,8 @@ func _run() -> void:
 	var motion := InputEventMouseMotion.new()
 	motion.relative = Vector2(120, 10000)
 	game._apply_mouse_look(motion.relative)
-	_check(absf(game.player.rotation.y) > 0.1, "mouse turns first-person yaw")
-	_check(is_equal_approx(game.camera.rotation.x, deg_to_rad(-75)), "vertical mouse look clamps at 75 degrees")
+	_check(absf(game.player.rotation.y) > 0.1, "mouse turns third-person yaw")
+	_check(is_equal_approx(game.camera_arm.rotation.x, deg_to_rad(-55)), "vertical mouse look clamps at 55 degrees")
 	game.show_dialog("テスト", "会話中")
 	var saved_rotation: Vector3 = game.player.rotation
 	game._apply_mouse_look(motion.relative)
@@ -127,7 +127,7 @@ func _run() -> void:
 	game.close_dialog()
 	game.player.rotation = Vector3.ZERO
 	game.camera.rotation = Vector3.ZERO
-	game.player.position = Vector3(0.5, 0.03, 2.4)
+	game.player.position = Vector3(0.5, 0.03, 1.6)
 	game._update_target()
 	var start_position: Vector3 = game.player.position
 	Input.action_press("walk_right")
@@ -135,6 +135,13 @@ func _run() -> void:
 		await physics_frame
 	Input.action_release("walk_right")
 	_check(game.player.position.distance_to(start_position) > 0.1, "movement action moves player")
+	game.player.position = Vector3(0.5, 0.03, 3.5)
+	game.player.velocity = Vector3.ZERO
+	game.camera_arm.rotation = Vector3.ZERO
+	for i in range(4):
+		await physics_frame
+	_check(game.camera_arm.get_hit_length() < game.camera_arm.spring_length, "camera retracts near back wall")
+	_check(game.camera.global_position.z < 3.9, "camera stays inside back wall")
 	game.player.position = Vector3(-0.9, 0.03, 1.25)
 	var hit: KinematicCollision3D = game.player.move_and_collide(Vector3(0, 0, -1.5))
 	_check(hit != null and game.player.position.z > 0.7, "table collision blocks passage")
