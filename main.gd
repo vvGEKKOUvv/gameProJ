@@ -6,6 +6,8 @@ var dialog_open: bool = false
 var current_target: String = ""
 var player: CharacterBody3D
 var rabbit: Node3D
+var mouse_sensitivity: float = 0.0025
+var crosshair: Label
 var camera: Camera3D
 var lamp: OmniLight3D
 var world_environment: WorldEnvironment
@@ -33,6 +35,7 @@ func _ready() -> void:
 	_build_room()
 	_build_player()
 	_build_lighting()
+	_build_interaction_areas()
 	_build_ui()
 	_build_audio()
 	_refresh_state()
@@ -117,6 +120,9 @@ func _build_room() -> void:
 			box(self, Vector3(-4 + x * 2 + offset, 0.008, -3.75 + z * 0.5), Vector3(1.97, 0.018, 0.48), "floor")
 	box(self, Vector3(0, 1.9, -4), Vector3(10.2, 3.8, 0.2), "wall", true)
 	box(self, Vector3(-5, 1.9, 0), Vector3(0.2, 3.8, 8), "wall", true)
+	box(self, Vector3(5, 1.9, 0), Vector3(0.2, 3.8, 8), "wall", true)
+	box(self, Vector3(0, 1.9, 4), Vector3(10.2, 3.8, 0.2), "wall", true)
+	box(self, Vector3(0, 3.85, 0), Vector3(10, 0.1, 8), "cream")
 	box(self, Vector3(0, 0.2, -3.86), Vector3(10, 0.4, 0.08), "trim")
 	box(self, Vector3(-4.86, 0.2, 0), Vector3(0.08, 0.4, 8), "trim")
 	for x in range(11):
@@ -214,6 +220,7 @@ func _build_player() -> void:
 	player.add_child(collision)
 	rabbit = Node3D.new()
 	player.add_child(rabbit)
+	rabbit.hide()
 	sphere(rabbit, Vector3(0, 0.52, 0), 0.30, "coat", Vector3(1, 1.25, 0.85))
 	sphere(rabbit, Vector3(0, 0.98, 0), 0.32, "rabbit", Vector3(1, 0.95, 0.90))
 	for x in [-0.16, 0.16]:
@@ -251,12 +258,28 @@ func _build_lighting() -> void:
 	lamp.omni_range = 7.0
 	lamp.shadow_enabled = true
 	camera = Camera3D.new()
-	add_child(camera)
-	camera.position = Vector3(10, 11, 14)
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 13.9
-	camera.look_at(Vector3(-0.1, 0.9, -0.4))
+	player.add_child(camera)
+	camera.position = Vector3(0, 1.38, 0)
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = 72.0
+	camera.near = 0.05
 	camera.current = true
+
+func _build_interaction_areas() -> void:
+	var positions: Dictionary = {"note": Vector3(-0.75, 0.90, 0.1), "phone": Vector3(0.15, 1.43, -3.25), "mirror": Vector3(2.65, 1.5, -3.51), "music": Vector3(-3.55, 1.46, -2.8), "door": Vector3(4.3, 1.42, -3.5), "window": Vector3(-4.68, 2.3, -1.0)}
+	var sizes: Dictionary = {"note": Vector3(0.65, 0.14, 0.50), "phone": Vector3(0.85, 0.40, 0.65), "mirror": Vector3(1.05, 2.25, 0.1), "music": Vector3(0.70, 0.38, 0.50), "door": Vector3(1.05, 2.72, 0.1), "window": Vector3(0.10, 1.45, 1.6)}
+	for id in positions:
+		var area := Area3D.new()
+		area.collision_layer = 2
+		area.collision_mask = 0
+		area.set_meta("interaction_id", id)
+		var collision := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = sizes[id]
+		collision.shape = shape
+		area.add_child(collision)
+		add_child(area)
+		area.position = positions[id]
 
 func _label(text_value: String, font_size: int, color_value: Color) -> Label:
 	var label := Label.new()
@@ -298,6 +321,18 @@ func _build_ui() -> void:
 	var shader_material := ShaderMaterial.new()
 	shader_material.shader = shader
 	film.material = shader_material
+	var top_backdrop := ColorRect.new()
+	root.add_child(top_backdrop)
+	top_backdrop.color = Color(0.035, 0.07, 0.065, 0.78)
+	top_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_backdrop.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	top_backdrop.offset_bottom = 133
+	var bottom_backdrop := ColorRect.new()
+	root.add_child(bottom_backdrop)
+	bottom_backdrop.color = Color(0.035, 0.07, 0.065, 0.78)
+	bottom_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom_backdrop.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom_backdrop.offset_top = -48
 	var header := VBoxContainer.new()
 	root.add_child(header)
 	header.position = Vector2(36, 27)
@@ -316,13 +351,13 @@ func _build_ui() -> void:
 	objective.add_child(_label("旅のしおり  /  OBJECTIVE", 11, Color("a5b4ab")))
 	objective_label = _label("", 16, Color("eee3cd"))
 	objective.add_child(objective_label)
-	var controls := _label("WASD / 矢印：歩く     E / Enter：調べる     M：音の切替", 13, Color("a4b0a7"))
+	var controls := _label("WASD：移動   マウス：見回す   E：調べる   Esc：マウス解除   M：音", 13, Color("a4b0a7"))
 	controls.name = "ControlsLabel"
 	root.add_child(controls)
 	controls.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	controls.offset_left = 36
 	controls.offset_top = -36
-	controls.offset_right = 760
+	controls.offset_right = 940
 	controls.offset_bottom = -14
 	prompt_label = _label("", 18, Color("f1e7cd"))
 	root.add_child(prompt_label)
@@ -335,6 +370,15 @@ func _build_ui() -> void:
 	prompt_label.add_theme_color_override("font_shadow_color", Color("172124"))
 	prompt_label.add_theme_constant_override("shadow_offset_x", 2)
 	prompt_label.add_theme_constant_override("shadow_offset_y", 2)
+	crosshair = _label("+", 22, Color("eee5cf"))
+	root.add_child(crosshair)
+	crosshair.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	crosshair.offset_left = -12
+	crosshair.offset_right = 12
+	crosshair.offset_top = -16
+	crosshair.offset_bottom = 16
+	crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dialog_panel = PanelContainer.new()
 	root.add_child(dialog_panel)
 	dialog_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -425,7 +469,19 @@ func _music_phrase() -> void:
 	tone.stream = _wav(data)
 	tone.play()
 
+func _apply_mouse_look(relative: Vector2) -> void:
+	if dialog_open or ended:
+		return
+	player.rotation.y -= relative.x * mouse_sensitivity
+	camera.rotation.x = clampf(camera.rotation.x - relative.y * mouse_sensitivity, deg_to_rad(-75), deg_to_rad(75))
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and not dialog_open and not ended and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_apply_mouse_look(event.relative)
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not dialog_open and not ended:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		return
 	if event.is_action_pressed("mute"):
 		audio_enabled = not audio_enabled
 		ambience.stream_paused = not audio_enabled
@@ -438,6 +494,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if dialog_open:
 		if event.is_action_pressed("interact") or event.is_action_pressed("dismiss"):
 			close_dialog()
+		return
+	if event.is_action_pressed("dismiss"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return
 	if event.is_action_pressed("interact") and not current_target.is_empty():
 		interact(current_target)
@@ -459,33 +518,33 @@ func _physics_process(delta: float) -> void:
 	player.move_and_slide()
 	player.position.x = clampf(player.position.x, -4.5, 4.65)
 	player.position.z = clampf(player.position.z, -3.55, 3.5)
-	if direction.length_squared() > 0.01:
-		rabbit.rotation.y = lerp_angle(rabbit.rotation.y, atan2(direction.x, direction.z), delta * 12.0)
-		rabbit.position.y = abs(sin(elapsed * 10.0)) * 0.055
-	else:
-		rabbit.position.y = sin(elapsed * 2.0) * 0.012
 	_update_target()
 
 func _update_target() -> void:
 	current_target = ""
-	var nearest := 1.55
-	for id in targets:
-		var point: Vector3 = targets[id]
-		var distance := Vector2(player.position.x - point.x, player.position.z - point.z).length()
-		if distance < nearest:
-			nearest = distance
-			current_target = id
+	var start := camera.global_position
+	var finish := start - camera.global_basis.z * 2.4
+	var query := PhysicsRayQueryParameters3D.create(start, finish, 3, [player.get_rid()])
+	query.collide_with_areas = true
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty() and hit.collider.has_meta("interaction_id"):
+		current_target = hit.collider.get_meta("interaction_id")
 	prompt_label.text = "[ E ]  " + NAMES[current_target] if not current_target.is_empty() else ""
+	crosshair.modulate = Color("e8c987") if not current_target.is_empty() else Color.WHITE
 
 func show_dialog(title: String, message: String) -> void:
 	dialog_title.text = title
 	dialog_text.text = message
 	dialog_open = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	crosshair.hide()
 	dialog_panel.show()
 	prompt_label.hide()
 
 func close_dialog() -> void:
 	dialog_open = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	crosshair.show()
 	dialog_panel.hide()
 	prompt_label.show()
 	_update_target()
@@ -531,6 +590,8 @@ func interact(id: String) -> void:
 				show_dialog("出口の扉", "鍵がかかっている。\n管理人の案内に従って、帰りの鍵を探そう。")
 			else:
 				ended = true
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+				crosshair.hide()
 				dialog_open = false
 				dialog_panel.hide()
 				prompt_label.hide()
@@ -557,6 +618,8 @@ func restart_game() -> void:
 	player.position = Vector3(0.5, 0.03, 2.4)
 	player.velocity = Vector3.ZERO
 	rabbit.rotation = Vector3.ZERO
+	player.rotation = Vector3.ZERO
+	camera.rotation = Vector3.ZERO
 	ending_panel.hide()
 	_refresh_state()
 	_intro()

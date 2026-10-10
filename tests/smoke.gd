@@ -98,6 +98,7 @@ func _run() -> void:
 	_check(game.stage == 0 and not game.ended, "door is locked again after restart")
 	game.close_dialog()
 	game.player.position = game.targets["note"] + Vector3(0, 0.03, 1.0)
+	game.camera.look_at(Vector3(-0.75, 0.90, 0.1))
 	game._update_target()
 	game._unhandled_input(_key(KEY_E))
 	_check(game.stage == 1 and game.dialog_open, "E interacts with nearby clue")
@@ -106,8 +107,26 @@ func _run() -> void:
 
 	# Interaction prompts follow proximity, and movement responds to the mapped action.
 	game.player.position = game.targets["phone"] + Vector3(0, 0.03, 1.0)
+	game.camera.look_at(Vector3(0.15, 1.43, -3.25))
 	game._update_target()
-	_check(game.current_target == "phone", "nearby phone becomes current target")
+	_check(game.current_target == "phone", "aimed nearby phone becomes current target")
+	_check(game.camera.projection == Camera3D.PROJECTION_PERSPECTIVE and game.camera.get_parent() == game.player, "first-person perspective camera follows player")
+	game.camera.rotation = Vector3(0, PI, 0)
+	game._update_target()
+	_check(game.current_target.is_empty(), "looking away removes interaction")
+	game.camera.rotation = Vector3.ZERO
+	var motion := InputEventMouseMotion.new()
+	motion.relative = Vector2(120, 10000)
+	game._apply_mouse_look(motion.relative)
+	_check(absf(game.player.rotation.y) > 0.1, "mouse turns first-person yaw")
+	_check(is_equal_approx(game.camera.rotation.x, deg_to_rad(-75)), "vertical mouse look clamps at 75 degrees")
+	game.show_dialog("テスト", "会話中")
+	var saved_rotation: Vector3 = game.player.rotation
+	game._apply_mouse_look(motion.relative)
+	_check(game.player.rotation == saved_rotation, "dialogue blocks mouse look")
+	game.close_dialog()
+	game.player.rotation = Vector3.ZERO
+	game.camera.rotation = Vector3.ZERO
 	game.player.position = Vector3(0.5, 0.03, 2.4)
 	game._update_target()
 	var start_position: Vector3 = game.player.position
