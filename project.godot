@@ -1,7 +1,7 @@
 config_version=5
 
 [application]
-config/name="かえりの鍵 — The Borrowed Room"
+config/name="まどろみの庭 — The Garden Between Dreams"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 

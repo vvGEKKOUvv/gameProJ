@@ -38,12 +38,22 @@ func _run() -> void:
 	await process_frame
 	_check(game.stage == 0 and not game.ended, "initial story state")
 	_check(game.dialog_open, "intro dialog opens")
+	_check(game.waking and game.wake_camera.current and game.bed != null, "story begins waking in forest bed")
+	_check(game.rabbit.is_set_as_top_level(), "opening character lies on bed")
+	var sleeping_position: Vector3 = game.player.position
+	Input.action_press("walk_up")
+	await physics_frame
+	Input.action_release("walk_up")
+	_check(game.player.position == sleeping_position, "opening blocks walking before waking")
 	_check(not game.shadow_guest.visible and not game.key_mesh.visible, "clues begin hidden")
 	_check_on_screen(game.objective_label.get_parent(), "objective panel")
 	_check_on_screen(game.prompt_label, "interaction prompt")
 	_check_on_screen(game.find_child("ControlsLabel", true, false), "controls label")
 	game._unhandled_input(_key(KEY_ESCAPE))
 	_check(not game.dialog_open, "Escape dismisses intro dialog")
+	await create_timer(1.1).timeout
+	_check(not game.waking and not game.wake_in_progress and game.camera.current, "waking transitions to third-person exploration")
+	_check(not game.rabbit.is_set_as_top_level() and game.rabbit.visible, "traveler stands beside forest bed")
 
 	game.interact("door")
 	_check(game.stage == 0 and not game.ended, "door blocks exit before key")
@@ -91,14 +101,16 @@ func _run() -> void:
 
 	game._unhandled_input(_key(KEY_R))
 	_check(game.stage == 0 and not game.ended and game.dialog_open, "restart resets story and intro")
+	_check(game.waking and game.wake_camera.current, "restart returns to bed awakening")
 	_check(not game.shadow_guest.visible and not game.key_mesh.visible and not game.ending_panel.visible, "restart resets visual clues")
-	_check(game.player.position.distance_to(Vector3(0.5, 0.03, 1.6)) < 0.01, "restart resets player position")
+	_check(game.player.position.distance_to(game.SPAWN_POS) < 0.01, "restart resets player position")
 	game.close_dialog()
 	game.interact("door")
 	_check(game.stage == 0 and not game.ended, "door is locked again after restart")
 	game.close_dialog()
+	await create_timer(1.1).timeout
 	game.player.position = game.targets["note"] + Vector3(0, 0.03, 1.0)
-	game.camera.look_at(Vector3(-0.75, 0.90, 0.1))
+	game.camera.look_at(game.interaction_centers["note"])
 	game._update_target()
 	game._unhandled_input(_key(KEY_E))
 	_check(game.stage == 1 and game.dialog_open, "E interacts with nearby clue")
@@ -107,7 +119,7 @@ func _run() -> void:
 
 	# Interaction prompts follow proximity, and movement responds to the mapped action.
 	game.player.position = game.targets["phone"] + Vector3(0, 0.03, 1.0)
-	game.camera.look_at(Vector3(0.15, 1.43, -3.25))
+	game.camera.look_at(game.interaction_centers["phone"])
 	game._update_target()
 	_check(game.current_target == "phone", "aimed nearby phone becomes current target")
 	_check(game.camera.projection == Camera3D.PROJECTION_PERSPECTIVE and game.camera.get_parent() == game.camera_arm and game.camera_arm.get_parent() == game.player and game.rabbit.visible, "third-person camera follows visible player")
@@ -117,7 +129,10 @@ func _run() -> void:
 	game.camera.rotation = Vector3.ZERO
 	var motion := InputEventMouseMotion.new()
 	motion.relative = Vector2(120, 10000)
-	game._apply_mouse_look(motion.relative)
+	if DisplayServer.get_name() == "headless":
+		game._apply_mouse_look(motion.relative)
+	else:
+		game._unhandled_input(motion)
 	_check(absf(game.player.rotation.y) > 0.1, "mouse turns third-person yaw")
 	_check(is_equal_approx(game.camera_arm.rotation.x, deg_to_rad(-55)), "vertical mouse look clamps at 55 degrees")
 	game.show_dialog("テスト", "会話中")
@@ -127,7 +142,7 @@ func _run() -> void:
 	game.close_dialog()
 	game.player.rotation = Vector3.ZERO
 	game.camera.rotation = Vector3.ZERO
-	game.player.position = Vector3(0.5, 0.03, 1.6)
+	game.player.position = game.SPAWN_POS
 	game._update_target()
 	var start_position: Vector3 = game.player.position
 	Input.action_press("walk_right")
@@ -135,16 +150,32 @@ func _run() -> void:
 		await physics_frame
 	Input.action_release("walk_right")
 	_check(game.player.position.distance_to(start_position) > 0.1, "movement action moves player")
-	game.player.position = Vector3(0.5, 0.03, 3.5)
+	for id in ["note", "phone", "mirror", "music", "door"]:
+		var found := false
+		for offset in [Vector3(0, 0.03, 1.3), Vector3(1.3, 0.03, 0), Vector3(-1.3, 0.03, 0)]:
+			game.player.position = game.targets[id] + offset
+			game.player.velocity = Vector3.ZERO
+			await physics_frame
+			game.camera.look_at(game.interaction_centers[id])
+			game._update_target()
+			if game.current_target == id:
+				found = true
+				break
+		_check(found, "forest target can be aimed and inspected: " + id)
+	game.camera.rotation = Vector3.ZERO
+	game.player.rotation = Vector3.ZERO
+	var obstacle: MeshInstance3D = game.box(game, Vector3(0, 1.9, 9), Vector3(3, 3, 0.2), "mint", true)
+	game.player.position = Vector3(0, 0.03, 7.6)
 	game.player.velocity = Vector3.ZERO
 	game.camera_arm.rotation = Vector3.ZERO
 	for i in range(4):
 		await physics_frame
-	_check(game.camera_arm.get_hit_length() < game.camera_arm.spring_length, "camera retracts near back wall")
-	_check(game.camera.global_position.z < 3.9, "camera stays inside back wall")
-	game.player.position = Vector3(-0.9, 0.03, 1.25)
-	var hit: KinematicCollision3D = game.player.move_and_collide(Vector3(0, 0, -1.5))
-	_check(hit != null and game.player.position.z > 0.7, "table collision blocks passage")
+	_check(game.camera_arm.get_hit_length() < game.camera_arm.spring_length, "camera retracts at obstacles")
+	_check(game.camera.global_position.z < 8.9, "camera stays before obstacle")
+	obstacle.queue_free()
+	game.player.position = Vector3(0, 0.03, 6.8)
+	var hit: KinematicCollision3D = game.player.move_and_collide(Vector3(0, 0, -2.0))
+	_check(hit != null and game.player.position.z > 5.3, "forest bed blocks passage")
 
 	print("Smoke test: %d checks, %d failures" % [checks, failures])
 	game.ambience.stop()
