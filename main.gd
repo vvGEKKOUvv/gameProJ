@@ -185,6 +185,7 @@ func _build_lighting() -> void:
 	lamp.light_energy = 0.8
 	lamp.omni_range = 7.0
 	lamp.shadow_enabled = true
+	preload("res://lighting.gd").new().configure(self, sun)
 	camera_arm = SpringArm3D.new()
 	player.add_child(camera_arm)
 	camera_arm.position = Vector3(0.45, 1.9, 0)
@@ -260,7 +261,7 @@ func _build_ui() -> void:
 	film.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	film.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var shader := Shader.new()
-	shader.code = "shader_type canvas_item; uniform sampler2D screen_texture : hint_screen_texture, filter_nearest; void fragment(){ vec2 uv=SCREEN_UV; vec3 c=texture(screen_texture,uv).rgb; float vignette=1.0-0.36*pow(length((uv-0.5)*1.4),2.0); float grain=fract(sin(dot(floor(uv*vec2(1100.0,720.0)),vec2(12.9898,78.233))+floor(TIME*8.0))*43758.5453)-0.5; c=mix(c,vec3(dot(c,vec3(0.299,0.587,0.114))),0.08); COLOR=vec4(c*vignette+grain*0.025,1.0); }"
+	shader.code = "shader_type canvas_item; uniform sampler2D screen_texture : hint_screen_texture, filter_nearest; void fragment(){ vec2 uv=SCREEN_UV; vec3 c=texture(screen_texture,uv).rgb; float vignette=1.0-0.36*pow(length((uv-0.5)*1.4),2.0); float grain=fract(sin(dot(floor(uv*vec2(1100.0,720.0)),vec2(12.9898,78.233))+floor(TIME*8.0))*43758.5453)-0.5; c=mix(c,vec3(dot(c,vec3(0.299,0.587,0.114))),0.08); COLOR=vec4(c*vignette+grain*0.008,1.0); }"
 	var shader_material := ShaderMaterial.new()
 	shader_material.shader = shader
 	film.material = shader_material
@@ -452,7 +453,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	elapsed += delta
 	if stage >= 2 and not ended:
-		lamp.light_energy = 0.45 + sin(elapsed * 11.0) * 0.08 + sin(elapsed * 27.0) * 0.04
+		lamp.light_energy = 0.25 + sin(elapsed * 11.0) * 0.08 + sin(elapsed * 27.0) * 0.04
 	if ended or dialog_open or waking:
 		player.velocity = Vector3.ZERO
 		return
@@ -581,9 +582,9 @@ func _refresh_state() -> void:
 	key_mesh.visible = stage == 4
 	chapter_label.text = "01  /  森のベッド" if stage < 2 else ("02  /  忘れられた遊園地" if stage < 4 else "03  /  朝への扉")
 	world_environment.environment.ambient_light_color = Color("91b2aa") if stage >= 2 else Color("d8e2cb")
-	world_environment.environment.ambient_light_energy = 0.30 if stage >= 2 else 0.38
+	world_environment.environment.ambient_light_energy = 0.38 if stage >= 2 else 0.55
 	lamp.light_color = Color("a5d6ba") if stage >= 2 else Color("ffcc88")
-	lamp.light_energy = 0.55 if stage >= 2 else 0.8
+	lamp.light_energy = 0.25 if stage >= 2 else 0.38
 
 func restart_game() -> void:
 	if wake_tween != null and wake_tween.is_running():

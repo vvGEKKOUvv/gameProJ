@@ -38,6 +38,19 @@ func _run() -> void:
 	await process_frame
 	_check(game.stage == 0 and not game.ended, "initial story state")
 	_check(game.dialog_open, "intro dialog opens")
+	var sun: DirectionalLight3D = game.get_node("OvercastSun")
+	_check(sun.shadow_enabled and sun.light_angular_distance > 0.5, "sun has soft angular shadows")
+	_check(game.world_environment.environment.sky != null, "overcast sky provides ambient lighting")
+	_check(game.materials["brass"].roughness < game.materials["blanket"].roughness, "metal and cloth have distinct roughness")
+	var canopy_count := 0
+	for child in game.get_children():
+		if child.has_meta("leaf_shadow_canopy"):
+			canopy_count += 1
+	_check(canopy_count == 4, "leaf cutout canopy supplies dappled shadows")
+	if RenderingServer.get_current_rendering_method() == "forward_plus":
+		_check(game.world_environment.environment.ssao_enabled and game.world_environment.environment.ssil_enabled and game.world_environment.environment.volumetric_fog_enabled, "Forward+ enables contact shading, bounced light and volumetric fog")
+	else:
+		_check(not game.world_environment.environment.ssao_enabled and not game.world_environment.environment.ssil_enabled and not game.world_environment.environment.volumetric_fog_enabled, "Compatibility disables unsupported advanced effects")
 	_check(game.waking and game.wake_camera.current and game.bed != null, "story begins waking in forest bed")
 	_check(game.rabbit.is_set_as_top_level(), "opening character lies on bed")
 	var sleeping_position: Vector3 = game.player.position
